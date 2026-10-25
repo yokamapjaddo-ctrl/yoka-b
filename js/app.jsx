@@ -613,11 +613,12 @@ function ShopMap({region}) {
   const [sel, setSel] = useState(null);
   const [cat, setCat] = useState('all');
   const [real, setReal] = useState(null);
+  const [loadErr, setLoadErr] = useState('');
   const [me, setMe] = useState(null);
   useEffect(() => {
     if (!region || region.lat == null || !window.YOKA_STORES || !Y.sb) { setReal([]); return; }
-    let alive = true; setReal(null);
-    window.YOKA_STORES.listPublished(region.lat, region.lon).then(r => alive && setReal(r)).catch(() => alive && setReal([]));
+    let alive = true; setReal(null); setLoadErr('');
+    window.YOKA_STORES.listPublished(region.lat, region.lon).then(r => alive && setReal(r)).catch(e => { if (alive) { setLoadErr(e.message || ''); setReal([]); } });
     return () => { alive = false; };
   }, [region && region.code]);
   useEffect(() => {
@@ -627,6 +628,7 @@ function ShopMap({region}) {
   if (!region) return <NeedRegion/>;
   if (region.lat == null) return <Notice tone="error">この地域の位置情報を取得できませんでした。地域を選び直してください。</Notice>;
   if (real === null) return <Notice>お店を読み込み中…</Notice>;
+  if (loadErr) return <Notice tone="error">お店の情報を読み込めませんでした。時間をおいて開き直してください。（{loadErr}）</Notice>;
   if (real.length) {
     const SY = window.YOKA_STORES, base = me || {lat:region.lat, lon:region.lon};
     const list = real.map(s => ({...s, km: SY.distKm(base.lat, base.lon, s.latitude, s.longitude), lat:s.latitude, lon:s.longitude, color:'#e8836a'})).sort((a,b)=>a.km-b.km);
