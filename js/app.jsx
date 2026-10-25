@@ -556,17 +556,129 @@ const SHOP_SAMPLES = [
   {id:'s3', name:'まちのカフェ（サンプル）', cat:'カフェ', dlat:.002, dlon:.006, color:'#f0a83a', note:'平日15時からのケーキセット'},
   {id:'s4', name:'商店街の美容室（サンプル）', cat:'美容室', dlat:-.002, dlon:-.007, color:'#ea6f86', note:'はじめての方へ カット相談会'},
 ];
+const fmtKm = (k) => k < 1 ? `${Math.round(k * 1000 / 10) * 10}m` : `${k.toFixed(1)}km`;
+function todayInfo(days) {
+  const d = days[new Date().getDay()];
+  if (!d || d.status === 'unset') return { t:'営業時間の情報なし', c:GREY };
+  if (d.status === 'closed') return { t:'本日定休日', c:'#c9603c' };
+  return { t:'本日 ' + window.YOKA_STORES.dayText(d), c:TEAL_D || TEAL };
+}
+function StoreSheet({s, onClose}) {
+  const SY = window.YOKA_STORES, r = SY.routeUrls(s), today = new Date().getDay();
+  const [pi, setPi] = useState(0);
+  return (
+    <div style={{position:'absolute',inset:0,zIndex:1200,background:'rgba(20,24,23,.42)',display:'flex',alignItems:'flex-end'}} onClick={onClose}>
+      <div className="fade" onClick={e=>e.stopPropagation()} style={{background:'#fff',width:'100%',borderRadius:'20px 20px 0 0',maxHeight:'90%',overflow:'auto',paddingBottom:'var(--bot)'}}>
+        {s.photos.length > 0 && (
+          <div style={{position:'relative',aspectRatio:'16/10',background:'#eef1f0'}}>
+            <img src={s.photos[pi].url} alt={s.photos[pi].alt || s.name} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+            {s.photos.length > 1 && <div className="row" style={{position:'absolute',bottom:10,left:0,right:0,justifyContent:'center',gap:6}}>
+              {s.photos.map((p,i)=><div key={i} onClick={()=>setPi(i)} style={{width:i===pi?20:8,height:8,borderRadius:4,background:i===pi?'#fff':'rgba(255,255,255,.6)',cursor:'pointer'}}/>)}
+            </div>}
+          </div>
+        )}
+        <div style={{padding:'16px 16px 18px',display:'flex',flexDirection:'column',gap:14}}>
+          <div className="row" style={{justifyContent:'space-between',alignItems:'flex-start',gap:10}}>
+            <div style={{minWidth:0}}>
+              {s.category && <span style={{fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:4,background:'#e6f4f1',color:TEAL}}>{s.category}</span>}
+              <div style={{fontSize:18,fontWeight:700,color:INK,marginTop:6}}>{s.name}</div>
+              <div style={{fontSize:12.5,color:SUB,marginTop:4}}>{s.municipality}{s.address}{s.km != null ? `・${fmtKm(s.km)}` : ''}</div>
+            </div>
+            <div onClick={onClose} style={{cursor:'pointer',flexShrink:0}}><Icon n="close" s={24}/></div>
+          </div>
+          {s.description && <div style={{fontSize:13.5,color:'#2c3a37',lineHeight:1.75,whiteSpace:'pre-wrap'}}>{s.description}</div>}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            <a href={r.google} target="_blank" rel="noopener" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,height:48,borderRadius:12,background:TEAL,color:'#fff',fontWeight:700,fontSize:14}}><Icon n="directions" s={20} c="#fff"/>Googleマップ</a>
+            <a href={r.apple} target="_blank" rel="noopener" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,height:48,borderRadius:12,background:'#fff',border:`1.5px solid ${TEAL}`,color:TEAL,fontWeight:700,fontSize:14}}><Icon n="directions" s={20} c={TEAL}/>Appleマップ</a>
+          </div>
+          <div style={{fontSize:11.5,color:GREY,marginTop:-8,textAlign:'center'}}>ここへ行く：地図アプリで経路を開きます</div>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:INK,marginBottom:8}}>営業時間</div>
+            <div style={{border:'1px solid #e3e8e6',borderRadius:12,overflow:'hidden'}}>
+              {SY.DAYS.map((d,i)=>{ const v = s.days[d.k], cur = d.k === today; return (
+                <div key={d.k} className="row" style={{padding:'9px 12px',gap:12,borderTop:i?'1px solid #eef1f0':0,background:cur?'#f1f8f6':'#fff'}}>
+                  <span style={{width:34,fontSize:13,fontWeight:cur?700:500,color:INK}}>{d.l}</span>
+                  <span style={{fontSize:13,fontWeight:cur?700:400,color:v.status==='closed'?'#c9603c':v.status==='unset'?GREY:INK}}>{SY.dayText(v)}</span>
+                </div>); })}
+            </div>
+            {s.hours_note && <div style={{fontSize:12.5,color:SUB,marginTop:8,lineHeight:1.6}}>{s.hours_note}</div>}
+          </div>
+          {s.verified_at && <div style={{fontSize:11.5,color:GREY}}>情報の最終確認日：{s.verified_at.slice(0,10).replace(/-/g,'/')}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
 function ShopMap({region}) {
   const [sel, setSel] = useState(null);
   const [cat, setCat] = useState('all');
+  const [real, setReal] = useState(null);
+  const [me, setMe] = useState(null);
+  useEffect(() => {
+    if (!region || region.lat == null || !window.YOKA_STORES || !Y.sb) { setReal([]); return; }
+    let alive = true; setReal(null);
+    window.YOKA_STORES.listPublished(region.lat, region.lon).then(r => alive && setReal(r)).catch(() => alive && setReal([]));
+    return () => { alive = false; };
+  }, [region && region.code]);
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(p => setMe({lat:p.coords.latitude, lon:p.coords.longitude}), () => {}, {maximumAge:300000, timeout:8000});
+  }, []);
   if (!region) return <NeedRegion/>;
+  if (region.lat == null) return <Notice tone="error">この地域の位置情報を取得できませんでした。地域を選び直してください。</Notice>;
+  if (real === null) return <Notice>お店を読み込み中…</Notice>;
+  if (real.length) {
+    const SY = window.YOKA_STORES, base = me || {lat:region.lat, lon:region.lon};
+    const list = real.map(s => ({...s, km: SY.distKm(base.lat, base.lon, s.latitude, s.longitude), lat:s.latitude, lon:s.longitude, color:'#e8836a'})).sort((a,b)=>a.km-b.km);
+    const cs = [...new Set(list.map(s => s.category).filter(Boolean))];
+    const shown = list.filter(s => cat === 'all' || s.category === cat);
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        {cs.length > 1 && <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+          {[['all','すべて'], ...cs.map(c=>[c,c])].map(([id,l])=>(
+            <div key={id} onClick={()=>setCat(id)} style={{padding:'7px 12px',borderRadius:999,fontSize:12,fontWeight:700,cursor:'pointer',
+              background:cat===id?TEAL:'#fff',color:cat===id?'#fff':'#4a5754',border:`1px solid ${cat===id?TEAL:'#e3e8e6'}`}}>{l}</div>
+          ))}
+        </div>}
+        <Card style={{position:'relative',height:300}}>
+          <LeafletMap lat={region.lat} lon={region.lon} zoom={14} markers={shown} onMarker={setSel}/>
+        </Card>
+        <div className="row" style={{justifyContent:'space-between'}}>
+          <span style={{fontSize:13.5,fontWeight:700,color:INK}}>周辺のお店 {shown.length}件</span>
+          <span style={{fontSize:11.5,color:GREY}}>{me ? '現在地から近い順' : `${region.name}の中心から近い順`}</span>
+        </div>
+        {shown.map(s => { const t = todayInfo(s.days); return (
+          <Card key={s.id} onClick={()=>setSel(s)} style={{padding:12,display:'flex',gap:12,cursor:'pointer'}}>
+            {s.photos[0] ? <img src={s.photos[0].url} alt="" style={{width:64,height:64,borderRadius:10,objectFit:'cover',flexShrink:0}}/> : <Ph label="写真" w={64} h={64}/>}
+            <div style={{flex:1,minWidth:0}}>
+              <div className="row" style={{gap:6}}>
+                {s.category && <span style={{fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,background:'#fdf0ea',color:'#c9603c'}}>{s.category}</span>}
+                <span style={{fontSize:11.5,color:SUB}}>{fmtKm(s.km)}</span>
+              </div>
+              <div style={{fontSize:14.5,fontWeight:700,color:INK,marginTop:5}}>{s.name}</div>
+              <div style={{fontSize:12,fontWeight:700,color:t.c,marginTop:3}}>{t.t}</div>
+            </div>
+            <Icon n="chevron_right" s={22} c={GREY}/>
+          </Card>); })}
+        <Card style={{padding:14,display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{fontSize:12.5,color:'#2c3a37',lineHeight:1.7}}>お店の掲載をご希望の店舗さまは、こちらからお問い合わせください。</div>
+          <Btn kind="ghost" onClick={()=>go('partner?type=shop')}>掲載について問い合わせる</Btn>
+        </Card>
+        <div style={{fontSize:10.5,color:'#9aa5a2'}}>地図：国土地理院（地理院タイル）</div>
+        {sel && <StoreSheet s={sel} onClose={()=>setSel(null)}/>}
+      </div>
+    );
+  }
+  return <ShopSamples region={region} sel={sel} setSel={setSel} cat={cat} setCat={setCat}/>;
+}
+function ShopSamples({region, sel, setSel, cat, setCat}) {
   if (region.lat == null) return <Notice tone="error">この地域の位置情報を取得できませんでした。地域を選び直してください。</Notice>;
   const cats = [['all','すべて'],['flyer','チラシあり'],['カフェ','カフェ'],['美容室','美容室']];
   const markers = SHOP_SAMPLES.filter(s => cat === 'all' || (cat === 'flyer' ? s.flyer : s.cat === cat))
     .map(s => ({...s, lat:region.lat + s.dlat, lon:region.lon + s.dlon}));
   return (
     <div style={{display:'flex',flexDirection:'column',gap:12}}>
-      <Notice>掲載イメージです。地図上のお店はすべてサンプルで、実在の店舗ではありません。</Notice>
+      <Notice>この地域にはまだ掲載店舗がありません。以下は掲載イメージで、地図上のお店はすべてサンプルです。</Notice>
       <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
         {cats.map(([id,l])=>(
           <div key={id} onClick={()=>setCat(id)} style={{padding:'7px 12px',borderRadius:999,fontSize:12,fontWeight:700,cursor:'pointer',
