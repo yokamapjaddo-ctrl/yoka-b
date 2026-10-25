@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>YOKA 店舗管理（運営専用）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20,400,1,0&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#f4f6f5;font-family:"Noto Sans JP",system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#22312e}
+  a{color:#0f8e7f;text-decoration:none}a:hover{color:#0b6b60}
+  button,input,select,textarea{font-family:inherit}
+  input:focus,select:focus,textarea:focus{border-color:#0f8e7f !important}
+  .row{display:flex;align-items:center}
+  .leaflet-container{font-family:inherit;background:#eef1f0}
+  #boot{display:flex;align-items:center;justify-content:center;height:100vh;color:#6b7674;font-size:14px}
+</style>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>var GSI = window.GSI || {};</script>
+<script src="https://maps.gsi.go.jp/js/muni.js"></script>
+<script src="config.js"></script>
+<script src="js/services.js"></script>
+<script src="js/stores.js"></script>
+</head>
+<body>
+<div id="root"><div id="boot">読み込み中…</div></div>
+<script type="text/babel" src="js/ui.jsx"></script>
+<script type="text/babel" src="js/admin.jsx"></script>
+</body>
+</html>
