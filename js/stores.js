@@ -106,5 +106,28 @@
     return d.ranges.length ? d.ranges.map(r => `${r.o}–${r.c}`).join(' / ') : '営業（時間未登録）';
   }
 
-  window.YOKA_STORES = { DAYS, MAX_PHOTOS, TYPES, MAX, amIAdmin, photoUrl, listAll, get, save, archive, restore, emptyDays, preparePhoto, geocodeAddress, dayText };
+  // 住民向け：公開中の店舗（地域の中心から約15km四方）。非公開はRLSで返らない
+  async function listPublished(lat, lon) {
+    need();
+    const d = 0.14;
+    const rows = chk(await sb.from('stores')
+      .select('id,name,category,description,prefecture,municipality,address,latitude,longitude,hours_note,verified_at,store_day_rules(day_key,status),store_hours(day_key,opens_at,closes_at,sort),store_photos(path,sort,alt)')
+      .eq('is_published', true).is('archived_at', null)
+      .gte('latitude', lat - d).lte('latitude', lat + d).gte('longitude', lon - d).lte('longitude', lon + d));
+    return rows.map(s => {
+      const days = emptyDays();
+      (s.store_day_rules || []).forEach(r => { days[r.day_key] = { status: r.status, ranges: [] }; });
+      (s.store_hours || []).sort((a, b) => a.sort - b.sort).forEach(h => { if (days[h.day_key]) days[h.day_key].ranges.push({ o: hm(h.opens_at), c: hm(h.closes_at) }); });
+      const photos = (s.store_photos || []).sort((a, b) => a.sort - b.sort).map(p => ({ url: photoUrl(p.path), alt: p.alt || '' }));
+      const { store_day_rules, store_hours, store_photos, ...store } = s;
+      return { ...store, days, photos };
+    });
+  }
+  const distKm = (a, b, c, d) => { const R = 6371, r = Math.PI / 180, x = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+  const routeUrls = (s) => ({
+    google: `https://www.google.com/maps/dir/?api=1&destination=${s.latitude},${s.longitude}`,
+    apple: `https://maps.apple.com/?daddr=${s.latitude},${s.longitude}&q=${encodeURIComponent(s.name)}`,
+  });
+
+  window.YOKA_STORES = { DAYS, MAX_PHOTOS, TYPES, MAX, amIAdmin, photoUrl, listAll, get, save, archive, restore, emptyDays, preparePhoto, geocodeAddress, dayText, listPublished, distKm, routeUrls };
 })();
