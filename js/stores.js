@@ -111,15 +111,17 @@
     need();
     const d = 0.14;
     const rows = chk(await sb.from('stores')
-      .select('id,name,category,description,prefecture,municipality,address,latitude,longitude,hours_note,verified_at,store_day_rules(day_key,status),store_hours(day_key,opens_at,closes_at,sort),store_photos(path,sort,alt)')
+      .select('id,name,category,description,prefecture,municipality,address,latitude,longitude,hours_note,verified_at,store_day_rules(day_key,status),store_photos(path,sort,alt)')
       .eq('is_published', true).is('archived_at', null)
       .gte('latitude', lat - d).lte('latitude', lat + d).gte('longitude', lon - d).lte('longitude', lon + d));
+    const ids = rows.map(s => s.id);
+    const hrs = ids.length ? chk(await sb.from('store_hours').select('store_id,day_key,opens_at,closes_at,sort').in('store_id', ids).order('sort')) : [];
     return rows.map(s => {
       const days = emptyDays();
       (s.store_day_rules || []).forEach(r => { days[r.day_key] = { status: r.status, ranges: [] }; });
-      (s.store_hours || []).sort((a, b) => a.sort - b.sort).forEach(h => { if (days[h.day_key]) days[h.day_key].ranges.push({ o: hm(h.opens_at), c: hm(h.closes_at) }); });
+      hrs.filter(h => h.store_id === s.id).forEach(h => { if (days[h.day_key]) days[h.day_key].ranges.push({ o: hm(h.opens_at), c: hm(h.closes_at) }); });
       const photos = (s.store_photos || []).sort((a, b) => a.sort - b.sort).map(p => ({ url: photoUrl(p.path), alt: p.alt || '' }));
-      const { store_day_rules, store_hours, store_photos, ...store } = s;
+      const { store_day_rules, store_photos, ...store } = s;
       return { ...store, days, photos };
     });
   }
