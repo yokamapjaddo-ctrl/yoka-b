@@ -1,5 +1,6 @@
 // YOKA 店舗データ（Supabase）。管理画面・住民画面・将来の店舗用画面で共通に使う。
-(function () {
+js/
+  (function () {
   const Y = window.YOKA || {}, sb = Y.sb;
   const BUCKET = 'store-images', MAX = 3 * 1024 * 1024, TYPES = ['image/jpeg', 'image/png', 'image/webp'], MAX_PHOTOS = 3;
   // day_key: 0=日 1=月 … 6=土 7=祝日（表示順は月→日→祝日）
