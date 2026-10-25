@@ -390,8 +390,17 @@ function LeafletMap({lat, lon, zoom=14, overlay, markers, onMarker}) {
   useEffect(() => {
     if (!mk.current) return;
     mk.current.clearLayers();
-    (markers || []).forEach(p => L.circleMarker([p.lat, p.lon], {radius:8, color:'#fff', weight:2, fillColor:p.color, fillOpacity:1})
+    (markers || []).forEach(p => (p.pin
+      ? L.marker([p.lat, p.lon], {icon: L.divIcon({className:'', iconSize:[30,42], iconAnchor:[15,40],
+          html:'<svg width="30" height="42" viewBox="0 0 30 42"><path d="M15 1C7.3 1 1 7.2 1 14.9 1 25.3 15 41 15 41s14-15.7 14-26.1C29 7.2 22.7 1 15 1z" fill="#ea4335" stroke="#b3261e" stroke-width="1.2"/><circle cx="15" cy="15" r="5.2" fill="#7a1410"/></svg>'})})
+      : L.circleMarker([p.lat, p.lon], {radius:8, color:'#fff', weight:2, fillColor:p.color, fillOpacity:1}))
       .on('click', () => onMarker && onMarker(p)).addTo(mk.current));
+    const fitKey = (markers || []).filter(p => p.pin).map(p => p.id).join(',');
+    if (fitKey && fitKey !== mk.fit && map.current) {
+      mk.fit = fitKey;
+      const b = L.latLngBounds(markers.map(p => [p.lat, p.lon]));
+      markers.length === 1 ? map.current.setView(b.getCenter(), 16) : map.current.fitBounds(b, {padding:[36,36], maxZoom:16});
+    }
   }, [markers]);
   return <div ref={el} style={{position:'absolute',inset:0}}/>;
 }
@@ -509,9 +518,9 @@ const FLYER_SAMPLES = [
 ];
 
 function MapTab({region, q}) {
-  const [view, setView] = useState(q.view === 'shops' ? 'shops' : 'flyer');
-  useEffect(() => { if (q.view) setView(q.view === 'shops' ? 'shops' : 'flyer'); }, [q.view]);
-  const views = [['flyer','チラシ'],['shops','お店マップ']];
+  const [view, setView] = useState(q.view === 'flyer' ? 'flyer' : 'shops');
+  useEffect(() => { if (q.view) setView(q.view === 'flyer' ? 'flyer' : 'shops'); }, [q.view]);
+  const views = [['shops','お店マップ'],['flyer','チラシ']];
   return (
     <>
       <PageHead title="チラシ・マップ">
@@ -631,7 +640,7 @@ function ShopMap({region}) {
   if (loadErr) return <Notice tone="error">お店の情報を読み込めませんでした。時間をおいて開き直してください。（{loadErr}）</Notice>;
   if (real.length) {
     const SY = window.YOKA_STORES, base = me || {lat:region.lat, lon:region.lon};
-    const list = real.map(s => ({...s, km: SY.distKm(base.lat, base.lon, s.latitude, s.longitude), lat:s.latitude, lon:s.longitude, color:'#e8836a'})).sort((a,b)=>a.km-b.km);
+    const list = real.map(s => ({...s, km: SY.distKm(base.lat, base.lon, s.latitude, s.longitude), lat:s.latitude, lon:s.longitude, color:'#e8836a', pin:true})).sort((a,b)=>a.km-b.km);
     const cs = [...new Set(list.map(s => s.category).filter(Boolean))];
     const shown = list.filter(s => cat === 'all' || s.category === cat);
     return (
