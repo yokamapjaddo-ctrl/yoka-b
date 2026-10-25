@@ -771,7 +771,7 @@ function Transit() {
 }
 
 /* ── 地域選択 ── */
-function RegionPicker({setRegion}) {
+function RegionPicker({setRegion, welcome}) {
   const [q, setQ] = useState(''); const [pref, setPref] = useState(null);
   const [busy, setBusy] = useState(''); const [err, setErr] = useState('');
   const all = Y.munis(); const prefs = Y.prefectures();
@@ -798,7 +798,7 @@ function RegionPicker({setRegion}) {
   if (!all.length) return (<><PageHead title="地域を選ぶ" onBack={back}/><Scroll><Notice tone="error">市区町村データを読み込めませんでした。通信状況を確認して再読み込みしてください。</Notice></Scroll></>);
   return (
     <>
-      <PageHead title="地域を選ぶ" onBack={pref && !q ? ()=>setPref(null) : back}>
+      <PageHead title={welcome ? '地域の設定' : '地域を選ぶ'} onBack={pref && !q ? ()=>setPref(null) : (welcome ? null : back)}>
         <div className="row" style={{gap:8,padding:'0 12px',borderRadius:10,background:'#eef1f0'}}>
           <Icon n="search" s={19} c={GREY}/>
           <input value={q} onChange={e=>setQ(e.target.value)} placeholder="市区町村名で検索（例：大和市）" style={{...inputStyle,border:'none',background:'transparent',padding:'11px 0'}}/>
@@ -806,6 +806,14 @@ function RegionPicker({setRegion}) {
       </PageHead>
       <Scroll>
         <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          {welcome && !q && !pref && (
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10,padding:'18px 8px 8px',textAlign:'center'}}>
+              <div className="row" style={{gap:8}}><Logo/><span style={{fontSize:22,fontWeight:900,letterSpacing:'.14em',color:INK}}>YOKA</span></div>
+              <div style={{fontSize:13,color:SUB}}>あなたと、まちをつなぐ。</div>
+              <div style={{fontSize:16,fontWeight:700,color:INK,marginTop:10}}>まずはお住まいの地域を選んでください</div>
+              <div style={{fontSize:12.5,color:SUB,lineHeight:1.7}}>選んだ地域の天気・地図・防災情報を表示します。あとから変更できます。</div>
+            </div>
+          )}
           {!q && !pref && <Btn kind="ghost" onClick={here} disabled={busy==='here'}><Icon n="my_location" s={19} c={TEAL_D}/>{busy==='here'?'取得中…':'現在地から設定する'}</Btn>}
           {err && <Notice tone="warn">{err}</Notice>}
           <Card>
@@ -1089,7 +1097,8 @@ function App() {
   const tabOf = {home:'home', hazard:'home', weather:'home', region:'home', map:'map', calendar:'calendar', transit:'transit'}[r] || 'my';
   const tabs = [['home','ホーム','home'],['map','チラシ・マップ','local_offer'],['calendar','カレンダー','calendar_month'],['transit','交通','directions_transit'],['my','マイページ','person']];
 
-  const screen = r === 'disaster' ? <Disaster exitDisaster={()=>go('home')}/> : (
+  const needOnboard = !region && !['privacy','terms','partner','disaster'].includes(r);
+  const screen = needOnboard ? <RegionPicker setRegion={setRegion} welcome/> : r === 'disaster' ? <Disaster exitDisaster={()=>go('home')}/> : (
     <>
       {r === 'home' && <Home region={region} weather={weather} sub={sub} setSub={setSub} user={user}/>}
       {r === 'hazard' && <HazardPage region={region}/>}
