@@ -95,7 +95,11 @@ function StoreList({ onOpen, onNew }) {
 }
 
 /* ── 所在地（都道府県・市区町村・住所・地図） ── */
-function LocationPicker({ s, set }) {
+const badStyle = (b) => b ? { borderColor: RED, background: '#fff7f8' } : null;
+const ErrText = ({ children = '入力してください' }) => <span style={{ fontSize: 12, fontWeight: 700, color: RED }}>{children}</span>;
+const PIN_SVG = '<svg width="30" height="42" viewBox="0 0 30 42"><path d="M15 1C7.3 1 1 7.2 1 14.9 1 25.3 15 41 15 41s14-15.7 14-26.1C29 7.2 22.7 1 15 1z" fill="#ea4335" stroke="#b3261e" stroke-width="1.2"/><circle cx="15" cy="15" r="5.2" fill="#7a1410"/></svg>';
+
+function LocationPicker({ s, set, E = {} }) {
   const prefs = useMemo(() => Y.prefectures(), []);
   const munis = useMemo(() => Y.munis().filter(m => m.pref === s.prefecture), [s.prefecture]);
   const el = useRef(), map = useRef(), mk = useRef(), setRef = useRef(set);
@@ -104,8 +108,9 @@ function LocationPicker({ s, set }) {
   const pick = (lat, lon) => setRef.current({ latitude: +lat.toFixed(6), longitude: +lon.toFixed(6) });
   useEffect(() => {
     const has = s.latitude != null;
-    map.current = L.map(el.current).setView(has ? [s.latitude, s.longitude] : [35.681, 139.767], has ? 17 : 12);
-    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom:18,
+    map.current = L.map(el.current, { zoomControl:false }).setView(has ? [s.latitude, s.longitude] : [35.681, 139.767], has ? 17 : 12);
+    L.control.zoom({ position:'bottomright' }).addTo(map.current);
+    L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', { maxZoom:18,
       attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>' }).addTo(map.current);
     map.current.on('click', e => pick(e.latlng.lat, e.latlng.lng));
     return () => map.current.remove();
@@ -114,7 +119,7 @@ function LocationPicker({ s, set }) {
     if (s.latitude == null) { if (mk.current) { mk.current.remove(); mk.current = null; } return; }
     const ll = [s.latitude, s.longitude];
     if (!mk.current) {
-      mk.current = L.marker(ll, { draggable:true }).addTo(map.current);
+      mk.current = L.marker(ll, { draggable:true, icon: L.divIcon({ className:'', html:PIN_SVG, iconSize:[30,42], iconAnchor:[15,40] }) }).addTo(map.current);
       mk.current.on('dragend', () => { const p = mk.current.getLatLng(); pick(p.lat, p.lng); });
     } else mk.current.setLatLng(ll);
     if (!map.current.getBounds().contains(ll)) map.current.setView(ll, 17);
@@ -133,30 +138,41 @@ function LocationPicker({ s, set }) {
     <>
       <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) minmax(0,1.4fr)', gap:10 }}>
         <Field label="都道府県 *">
-          <select value={s.prefecture} onChange={e => set({ prefecture: e.target.value, municipality:'', muni_code:'' })} style={inputStyle}>
+          <select value={s.prefecture} data-err={E.muni && !s.prefecture ? 1 : 0} onChange={e => set({ prefecture: e.target.value, municipality:'', muni_code:'' })} style={{ ...inputStyle, ...badStyle(E.muni && !s.prefecture) }}>
             <option value="">選択</option>{prefs.map(p => <option key={p.code} value={p.name}>{p.name}</option>)}
           </select>
         </Field>
         <Field label="市区町村 *">
-          <select value={s.muni_code} disabled={!s.prefecture} onChange={e => setMuni(e.target.value)} style={inputStyle}>
+          <select value={s.muni_code} disabled={!s.prefecture} data-err={E.muni && s.prefecture ? 1 : 0} onChange={e => setMuni(e.target.value)} style={{ ...inputStyle, ...badStyle(E.muni) }}>
             <option value="">選択</option>{munis.map(m => <option key={m.code} value={m.code}>{m.name}</option>)}
           </select>
         </Field>
       </div>
-      <Field label="住所（市区町村より後ろ） *"><input value={s.address} onChange={e => set({ address: e.target.value })} placeholder="例：本町1-2-3 ○○ビル1階" style={inputStyle}/></Field>
-      <div className="row" style={{ gap:10, flexWrap:'wrap' }}>
-        <Btn kind="ghost" onClick={findByAddress} disabled={busy || !s.muni_code || !s.address} style={{ width:'auto' }}><Icon n="my_location" s={18} c={TEAL_D}/>住所から位置を探す</Btn>
-        <span style={{ fontSize:12, color:SUB }}>{s.latitude != null ? `緯度 ${s.latitude}／経度 ${s.longitude}` : '位置が未設定です'}</span>
+      {E.muni && <div style={{ marginTop:-8 }}><ErrText>都道府県と市区町村を選んでください</ErrText></div>}
+      <Field label="住所（市区町村より後ろ） *"><input value={s.address} data-err={E.address ? 1 : 0} onChange={e => set({ address: e.target.value })} placeholder="例：本町1-2-3 ○○ビル1階" style={{ ...inputStyle, ...badStyle(E.address) }}/>{E.address && <ErrText/>}</Field>
+      <div data-err={E.loc ? 1 : 0} style={{ position:'relative', borderRadius:14, overflow:'hidden', border:E.loc ? `2px solid ${RED}` : '1px solid #e3e8e6' }}>
+        <div ref={el} style={{ height:300 }}/>
+        <div className="row" style={{ position:'absolute', top:10, left:10, right:10, zIndex:1000, gap:8, background:'#fff', borderRadius:26,
+          boxShadow:'0 1px 2px rgba(60,64,67,.3), 0 2px 6px 2px rgba(60,64,67,.15)', padding:'5px 5px 5px 12px' }}>
+          <Icon n="location_on" s={20} c="#ea4335"/>
+          <span style={{ flex:1, minWidth:0, fontSize:13, color:s.address ? INK : GREY, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            {s.address ? `${s.municipality}${s.address}` : '住所を入力すると位置を探せます'}
+          </span>
+          <button type="button" onClick={findByAddress} disabled={busy || !s.muni_code || !s.address} style={{ border:0, borderRadius:20, padding:'8px 14px', fontSize:12.5, fontWeight:700,
+            background:TEAL, color:'#fff', cursor:'pointer', whiteSpace:'nowrap', opacity:busy || !s.muni_code || !s.address ? .45 : 1 }}>{busy ? '検索中…' : '位置を探す'}</button>
+        </div>
       </div>
-      <div ref={el} style={{ height:260, borderRadius:12, overflow:'hidden', border:'1px solid #e3e8e6' }}/>
-      <div style={{ fontSize:11.5, color:'#8a9491', marginTop:-6 }}>地図をタップするか、ピンをドラッグして店舗の入口に合わせてください。</div>
+      <div className="row" style={{ marginTop:-6, gap:10, flexWrap:'wrap', justifyContent:'space-between' }}>
+        {E.loc ? <ErrText>地図をタップして位置を指定してください</ErrText> : <span style={{ fontSize:11.5, color:'#8a9491' }}>地図をタップするか、ピンをドラッグして入口に合わせます</span>}
+        <span style={{ fontSize:11, color:GREY }}>{s.latitude != null ? `${s.latitude}, ${s.longitude}` : '位置未設定'}</span>
+      </div>
       {msg && <Notice>{msg}</Notice>}
     </>
   );
 }
 
 /* ── 営業時間（営業／定休日／未設定 を区別。祝日は別枠） ── */
-function HoursEditor({ days, setDays }) {
+function HoursEditor({ days, setDays, showErr }) {
   const upd = (k, v) => setDays({ ...days, [k]: { ...days[k], ...v } });
   const setStatus = (k, st) => upd(k, { status: st, ranges: st === 'open' ? (days[k].ranges.length ? days[k].ranges : [{ o:'10:00', c:'18:00' }]) : [] });
   const setRange = (k, i, v) => upd(k, { ranges: days[k].ranges.map((r, j) => j === i ? { ...r, ...v } : r) });
@@ -176,13 +192,14 @@ function HoursEditor({ days, setDays }) {
             {v.status === 'open' && (
               <div style={{ display:'flex', flexDirection:'column', gap:6, paddingLeft:50 }}>
                 {v.ranges.map((r, i) => {
-                  const bad = r.o === r.c, over = r.c < r.o;
+                  const bad = !r.o || !r.c || r.o === r.c, over = r.c && r.o && r.c < r.o;
                   return (
                     <div key={i} className="row" style={{ gap:6, flexWrap:'wrap' }}>
-                      <input type="time" value={r.o} onChange={e => setRange(d.k, i, { o: e.target.value })} style={tin}/>
+                      <input type="time" value={r.o} data-err={showErr && bad ? 1 : 0} onChange={e => setRange(d.k, i, { o: e.target.value })} style={{ ...tin, ...badStyle(showErr && bad) }}/>
                       <span style={{ color:SUB }}>〜</span>
-                      <input type="time" value={r.c} onChange={e => setRange(d.k, i, { c: e.target.value })} style={{ ...tin, borderColor:bad ? RED : '#dfe5e3' }}/>
+                      <input type="time" value={r.c} onChange={e => setRange(d.k, i, { c: e.target.value })} style={{ ...tin, ...badStyle(bad) }}/>
                       {over && <span style={{ fontSize:11, color:SUB }}>翌日</span>}
+                      {showErr && bad && <ErrText>{r.o && r.c ? '開始と終了が同じです' : '時刻を入力してください'}</ErrText>}
                       <button type="button" onClick={() => upd(d.k, { ranges: v.ranges.filter((_, j) => j !== i) })} aria-label="時間帯を削除"
                         style={{ border:0, background:'none', cursor:'pointer', padding:6, display:v.ranges.length > 1 ? 'block' : 'none' }}><Icon n="close" s={18} c={GREY}/></button>
                     </div>
@@ -296,20 +313,26 @@ function StoreEditor({ id, onDone }) {
   const [s, setS] = useState(id ? null : emptyStore());
   const [days, setDays] = useState(SY.emptyDays());
   const [photos, setPhotos] = useState([]); const [removed, setRemoved] = useState([]);
-  const [loadErr, setLoadErr] = useState(''); const [errs, setErrs] = useState([]);
+  const [loadErr, setLoadErr] = useState(''); const [tried, setTried] = useState(false);
   const [confirm, setConfirm] = useState(false); const [busy, setBusy] = useState(false); const [saveErr, setSaveErr] = useState('');
   useEffect(() => { if (id) SY.get(id).then(r => { setS(r.store); setDays(r.days); setPhotos(r.photos); }).catch(e => setLoadErr(errMsg(e))); }, [id]);
   const set = (v) => setS(x => ({ ...x, ...v }));
   if (loadErr) return <Notice tone="error" icon="error">読み込めませんでした：{loadErr}</Notice>;
   if (!s) return <div style={{ color:SUB, fontSize:13, padding:20, textAlign:'center' }}>読み込み中…</div>;
+  const check = () => ({
+    name: !s.name.trim(), muni: !s.muni_code, address: !s.address.trim(), loc: s.latitude == null,
+    hours: DAYS.some(d => days[d.k].status === 'open' && days[d.k].ranges.some(r => !r.o || !r.c || r.o === r.c)),
+  });
+  const E = tried ? check() : {};
+  const LABELS = { name:'店名', muni:'都道府県・市区町村', address:'住所', loc:'地図上の位置', hours:'営業時間' };
+  const errs = Object.keys(LABELS).filter(k => E[k]).map(k => LABELS[k]);
   const validate = () => {
-    const e = [];
-    if (!s.name.trim()) e.push('店名');
-    if (!s.muni_code) e.push('都道府県・市区町村');
-    if (!s.address.trim()) e.push('住所');
-    if (s.latitude == null) e.push('地図上の位置');
-    if (DAYS.some(d => days[d.k].status === 'open' && days[d.k].ranges.some(r => !r.o || !r.c || r.o === r.c))) e.push('営業時間（開始と終了が同じ時刻）');
-    setErrs(e); if (!e.length) { setSaveErr(''); setConfirm(true); }
+    setTried(true);
+    if (Object.values(check()).some(Boolean)) {
+      setTimeout(() => { const el = document.querySelector('[data-err="1"]'); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 90, behavior:'smooth' }); }, 60);
+      return;
+    }
+    setSaveErr(''); setConfirm(true);
   };
   const doSave = async () => {
     setBusy(true); setSaveErr('');
@@ -329,13 +352,13 @@ function StoreEditor({ id, onDone }) {
       </div>
       {s.archived_at && <Notice tone="warn" icon="inventory_2">この店舗はアーカイブ中です。住民の画面には表示されません。</Notice>}
       <Section title="基本情報">
-        <Field label="店名 *"><input value={s.name} maxLength={80} onChange={e => set({ name: e.target.value })} style={inputStyle}/></Field>
+        <Field label="店名 *"><input value={s.name} maxLength={80} data-err={E.name ? 1 : 0} onChange={e => set({ name: e.target.value })} style={{ ...inputStyle, ...badStyle(E.name) }}/>{E.name && <ErrText/>}</Field>
         <Field label="業種" hint="例：パン屋、喫茶店、居酒屋"><input value={s.category || ''} maxLength={30} onChange={e => set({ category: e.target.value })} style={inputStyle}/></Field>
         <Field label="店舗紹介文" hint={`${(s.description || '').length} / 1000`}><textarea value={s.description || ''} maxLength={1000} rows={4} onChange={e => set({ description: e.target.value })} style={{ ...inputStyle, resize:'vertical', lineHeight:1.6 }}/></Field>
       </Section>
-      <Section title="所在地"><LocationPicker s={s} set={set}/></Section>
+      <Section title="所在地"><LocationPicker s={s} set={set} E={E}/></Section>
       <Section title="営業時間" right={<span style={{ fontSize:11.5, color:SUB }}>未設定は「情報なし」と表示</span>}>
-        <HoursEditor days={days} setDays={setDays}/>
+        <HoursEditor days={days} setDays={setDays} showErr={!!E.hours}/>
         <Field label="補足（臨時休業など）"><textarea value={s.hours_note || ''} maxLength={500} rows={2} onChange={e => set({ hours_note: e.target.value })} placeholder="例：11月3日は臨時休業" style={{ ...inputStyle, resize:'vertical', lineHeight:1.6 }}/></Field>
       </Section>
       <Section title="店舗写真" right={<span style={{ fontSize:12, color:SUB }}>{photos.length} / 3</span>}>
@@ -345,7 +368,7 @@ function StoreEditor({ id, onDone }) {
         <Field label="情報の最終確認日" hint="店舗に内容を確認した日"><input type="date" value={s.verified_at || ''} onChange={e => set({ verified_at: e.target.value })} style={{ ...inputStyle, maxWidth:200 }}/></Field>
         {!s.archived_at && <Seg value={s.is_published ? 'pub' : 'draft'} onChange={v => set({ is_published: v === 'pub' })} options={[['draft','非公開'],['pub','公開する']]}/>}
       </Section>
-      {errs.length > 0 && <Notice tone="error" icon="error">入力が必要です：{errs.join('、')}</Notice>}
+      {errs.length > 0 && <Notice tone="error" icon="error">赤枠の項目を確認してください：{errs.join('、')}</Notice>}
       {id && <Btn kind="danger" onClick={doArchive}><Icon n={s.archived_at ? 'unarchive' : 'inventory_2'} s={18} c="#c22e43"/>{s.archived_at ? 'アーカイブから戻す' : 'アーカイブする（非公開にして保管）'}</Btn>}
       <div style={{ position:'fixed', left:0, right:0, bottom:0, background:'rgba(255,255,255,.96)', boxShadow:'0 -1px 0 rgba(0,0,0,.08)', zIndex:1000 }}>
         <div className="row" style={{ maxWidth:720, margin:'0 auto', gap:10, padding:'10px 16px calc(env(safe-area-inset-bottom) + 10px)' }}>
