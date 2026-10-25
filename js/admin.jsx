@@ -197,7 +197,7 @@ function HoursEditor({ days, setDays, showErr }) {
                     <div key={i} className="row" style={{ gap:6, flexWrap:'wrap' }}>
                       <input type="time" value={r.o} data-err={showErr && bad ? 1 : 0} onChange={e => setRange(d.k, i, { o: e.target.value })} style={{ ...tin, ...badStyle(showErr && bad) }}/>
                       <span style={{ color:SUB }}>〜</span>
-                      <input type="time" value={r.c} onChange={e => setRange(d.k, i, { c: e.target.value })} style={{ ...tin, ...badStyle(bad) }}/>
+                      <input type="time" value={r.c} onChange={e => setRange(d.k, i, { c: e.target.value })} style={{ ...tin, ...badStyle(showErr && bad) }}/>
                       {over && <span style={{ fontSize:11, color:SUB }}>翌日</span>}
                       {showErr && bad && <ErrText>{r.o && r.c ? '開始と終了が同じです' : '時刻を入力してください'}</ErrText>}
                       <button type="button" onClick={() => upd(d.k, { ranges: v.ranges.filter((_, j) => j !== i) })} aria-label="時間帯を削除"
